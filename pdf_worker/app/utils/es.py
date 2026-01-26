@@ -18,6 +18,7 @@ PDF_CHUNKS_MAPPING = {
         "chunk_index": {"type": "integer"},
         "pages": {"type": "integer"},
         "text": {"type": "text"},
+        "metadata": {"type": "object"},
         "vector": {
             "type": "dense_vector",
             "dims": 1536,
@@ -37,6 +38,7 @@ CAPTIONS_MAPPING = {
         "page_number": {"type": "integer"},
         "xref": {"type": "integer"},
         "text": {"type": "text"},
+        "metadata": {"type": "object"},
         "vector": {
             "type": "dense_vector",
             "dims": 1536,
@@ -132,6 +134,15 @@ def save_chunks_to_es(
                     "chunk_index": int(getattr(ch, "chunk_index", 0)),
                     "pages": _coerce_pages(getattr(ch, "pages", [])),
                     "text": getattr(ch, "text", "") or "",
+                    "metadata": {
+                        "id": doc_id,
+                        "book_id": book_id,
+                        "source_pdf": source_pdf or filename,
+                        "filename": filename,
+                        "chunk_size": int(getattr(ch, "chunk_size", 0)),
+                        "chunk_index": int(getattr(ch, "chunk_index", 0)),
+                        "pages": _coerce_pages(getattr(ch, "pages", [])),
+                    },
                     "vector": vec,
                 },
             }

@@ -46,6 +46,13 @@ def embed_and_store_captions(records: List[ImageMetadata], index_name: str = CAP
                 "source_pdf": record.source_pdf,
                 "xref": record.xref,
                 "filename": record.filename,
+                "metadata": {
+                    "book_id": record.book_id,
+                    "page_number": record.page_number,
+                    "source_pdf": record.source_pdf,
+                    "xref": record.xref,
+                    "filename": record.filename,
+                },
             }
         })
 
