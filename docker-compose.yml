@@ -241,11 +241,14 @@ services:
       - internal_backend
     env_file:
       - .env
-    entrypoint: /bin/sh
-    command: -c "mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} && \
-      until mc ls local >/dev/null 2>&1; do echo waiting for minio...; sleep 2; done; \
-      mc mb -p local/uploads || true; \
-      mc mb -p local/images || true"
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do
+        echo "waiting for minio..."
+        sleep 2
+      done
+      mc mb -p local/uploads || true
+      mc mb -p local/images || true
 
 volumes:
   postgres_data:
