@@ -15,5 +15,4 @@ def get_vectorstore(index_name="pdf_chunks"):
         embedding=embeddings,
         vector_query_field="vector",
         query_field="text",
-        metadata_field="metadata",
     )
