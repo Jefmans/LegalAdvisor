@@ -179,8 +179,6 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin123
     volumes:
       - minio_data:/data
-    depends_on:
-      - minio-init
     networks:
       - internal_backend
     ports:
