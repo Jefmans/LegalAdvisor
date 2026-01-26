@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const initialUploadStatus = { message: "No file selected.", tone: "idle" as const };
 const initialQueryStatus = { message: "Waiting for a query.", tone: "idle" as const };
@@ -29,17 +29,45 @@ export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<Status>(initialUploadStatus);
   const [queryStatus, setQueryStatus] = useState<Status>(initialQueryStatus);
-  const [filename, setFilename] = useState<string | null>(null);
+  const [availableFiles, setAvailableFiles] = useState<string[]>([]);
+  const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
+  const [lastUploaded, setLastUploaded] = useState<string | null>(null);
   const [processInfo, setProcessInfo] = useState<string>("-");
   const [queryText, setQueryText] = useState<string>("");
   const [results, setResults] = useState<QueryItem[]>([]);
+
+  const applyFileList = (files: string[]) => {
+    setAvailableFiles(files);
+    setSelectedFilename((prev) => {
+      if (prev && files.includes(prev)) {
+        return prev;
+      }
+      return files[0] ?? null;
+    });
+  };
+
+  const loadFiles = async () => {
+    try {
+      const res = await fetch("/backend/files/");
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      const data = (await res.json()) as { files?: string[] };
+      const files = Array.isArray(data.files) ? data.files : [];
+      applyFileList(files);
+    } catch {
+      applyFileList([]);
+    }
+  };
+
+  useEffect(() => {
+    loadFiles();
+  }, []);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.files?.[0] ?? null;
     setFile(next);
     if (!next) {
-      setFilename(null);
-      setProcessInfo("-");
       setStatus({ message: "No file selected.", tone: "idle" }, setUploadStatus);
       return;
     }
@@ -69,7 +97,8 @@ export default function App() {
 
       const uploadData = await uploadRes.json();
       const uploadedName = uploadData.filename as string;
-      setFilename(uploadedName);
+      setLastUploaded(uploadedName);
+      setSelectedFilename(uploadedName);
 
       setStatus({ message: "Upload complete. Indexing...", tone: "ok" }, setUploadStatus);
 
@@ -88,6 +117,7 @@ export default function App() {
       const captions = processData.captions_indexed ?? "?";
       setProcessInfo(`Pages: ${pages} | Chunks: ${chunks} | Captions: ${captions}`);
       setStatus({ message: "Indexed successfully.", tone: "ok" }, setUploadStatus);
+      await loadFiles();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
       setStatus({ message: `Failed: ${message}`, tone: "error" }, setUploadStatus);
@@ -99,8 +129,8 @@ export default function App() {
       setStatus({ message: "Type a question first.", tone: "warn" }, setQueryStatus);
       return;
     }
-    if (!filename) {
-      setStatus({ message: "Upload and index a PDF first.", tone: "warn" }, setQueryStatus);
+    if (!selectedFilename) {
+      setStatus({ message: "Select a file first.", tone: "warn" }, setQueryStatus);
       return;
     }
 
@@ -124,9 +154,12 @@ export default function App() {
       const filtered = items.filter((item) => {
         const meta = item.metadata ?? {};
         const metaAny = meta as Record<string, unknown>;
-        const filenameMatch = metaAny.filename === filename;
+        const filenameMatch = metaAny.filename === selectedFilename;
         const sourcePdf = metaAny.source_pdf;
-        const sourceMatch = typeof sourcePdf === "string" && sourcePdf.includes(filename);
+        const sourceMatch =
+          typeof sourcePdf === "string" &&
+          !!selectedFilename &&
+          sourcePdf.includes(selectedFilename);
         return filenameMatch || sourceMatch;
       });
 
@@ -179,10 +212,32 @@ export default function App() {
             </button>
           </div>
           <div className={`status tone-${uploadStatus.tone}`}>{uploadStatus.message}</div>
+          <div className="row">
+            <select
+              value={selectedFilename ?? ""}
+              onChange={(event) => setSelectedFilename(event.target.value)}
+            >
+              <option value="" disabled>
+                Select an uploaded file
+              </option>
+              {availableFiles.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <button type="button" onClick={loadFiles}>
+              Refresh list
+            </button>
+          </div>
           <div className="details">
             <div>
-              <span className="label">Current file</span>
-              <span className="value">{filename ?? "-"}</span>
+              <span className="label">Selected file</span>
+              <span className="value">{selectedFilename ?? "-"}</span>
+            </div>
+            <div>
+              <span className="label">Last uploaded</span>
+              <span className="value">{lastUploaded ?? "-"}</span>
             </div>
             <div>
               <span className="label">Last processing</span>
@@ -193,7 +248,7 @@ export default function App() {
 
         <section className="panel">
           <h2>2. Ask your document</h2>
-          <p className="muted">We filter results to the latest uploaded file.</p>
+          <p className="muted">We filter results to the selected file.</p>
           <textarea
             rows={4}
             placeholder="Ask something about the PDF..."
