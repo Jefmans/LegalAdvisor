@@ -1,0 +1,232 @@
+import { useState } from "react";
+
+const initialUploadStatus = { message: "No file selected.", tone: "idle" as const };
+const initialQueryStatus = { message: "Waiting for a query.", tone: "idle" as const };
+
+type Tone = "idle" | "ok" | "warn" | "error";
+
+type Status = {
+  message: string;
+  tone: Tone;
+};
+
+type QueryItem = {
+  text: string;
+  score?: number;
+  metadata?: Record<string, unknown> | null;
+};
+
+type QueryResponse = {
+  text_chunks: QueryItem[];
+  captions: QueryItem[];
+};
+
+function setStatus(next: Status, setter: (value: Status) => void) {
+  setter(next);
+}
+
+export default function App() {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<Status>(initialUploadStatus);
+  const [queryStatus, setQueryStatus] = useState<Status>(initialQueryStatus);
+  const [filename, setFilename] = useState<string | null>(null);
+  const [processInfo, setProcessInfo] = useState<string>("-");
+  const [queryText, setQueryText] = useState<string>("");
+  const [results, setResults] = useState<QueryItem[]>([]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const next = event.target.files?.[0] ?? null;
+    setFile(next);
+    if (!next) {
+      setFilename(null);
+      setProcessInfo("-");
+      setStatus({ message: "No file selected.", tone: "idle" }, setUploadStatus);
+      return;
+    }
+    setStatus({ message: "Ready to upload.", tone: "ok" }, setUploadStatus);
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      setStatus({ message: "Select a PDF first.", tone: "warn" }, setUploadStatus);
+      return;
+    }
+
+    try {
+      setStatus({ message: "Uploading PDF...", tone: "idle" }, setUploadStatus);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const uploadRes = await fetch("/backend/upload/", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(await uploadRes.text());
+      }
+
+      const uploadData = await uploadRes.json();
+      const uploadedName = uploadData.filename as string;
+      setFilename(uploadedName);
+
+      setStatus({ message: "Upload complete. Indexing...", tone: "ok" }, setUploadStatus);
+
+      const processRes = await fetch(
+        `/pdfworker/process/full/${encodeURIComponent(uploadedName)}`,
+        { method: "POST" }
+      );
+
+      if (!processRes.ok) {
+        throw new Error(await processRes.text());
+      }
+
+      const processData = await processRes.json();
+      const pages = processData.pages ?? "?";
+      const chunks = processData.chunks_indexed ?? "?";
+      const captions = processData.captions_indexed ?? "?";
+      setProcessInfo(`Pages: ${pages} | Chunks: ${chunks} | Captions: ${captions}`);
+      setStatus({ message: "Indexed successfully.", tone: "ok" }, setUploadStatus);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      setStatus({ message: `Failed: ${message}`, tone: "error" }, setUploadStatus);
+    }
+  };
+
+  const handleQuery = async () => {
+    if (!queryText.trim()) {
+      setStatus({ message: "Type a question first.", tone: "warn" }, setQueryStatus);
+      return;
+    }
+    if (!filename) {
+      setStatus({ message: "Upload and index a PDF first.", tone: "warn" }, setQueryStatus);
+      return;
+    }
+
+    try {
+      setStatus({ message: "Searching...", tone: "idle" }, setQueryStatus);
+      setResults([]);
+
+      const res = await fetch("/backend/query/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: queryText, top_k: 20 })
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const data = (await res.json()) as QueryResponse;
+      const items = [...data.text_chunks, ...data.captions];
+
+      const filtered = items.filter((item) => {
+        const meta = item.metadata ?? {};
+        const metaAny = meta as Record<string, unknown>;
+        const filenameMatch = metaAny.filename === filename;
+        const sourcePdf = metaAny.source_pdf;
+        const sourceMatch = typeof sourcePdf === "string" && sourcePdf.includes(filename);
+        return filenameMatch || sourceMatch;
+      });
+
+      if (!filtered.length) {
+        setStatus(
+          { message: "No matches for this file in the top results.", tone: "warn" },
+          setQueryStatus
+        );
+        return;
+      }
+
+      setResults(filtered);
+      setStatus({ message: `Showing ${filtered.length} results.`, tone: "ok" }, setQueryStatus);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Query failed";
+      setStatus({ message: `Failed: ${message}`, tone: "error" }, setQueryStatus);
+    }
+  };
+
+  return (
+    <div className="app">
+      <div className="backdrop" />
+      <div className="grid">
+        <header className="hero">
+          <span className="badge">PDF LAB</span>
+          <h1>Upload, index, and query your PDFs.</h1>
+          <p>
+            Send a PDF to the backend, run the full pipeline, then query the indexed
+            chunks and captions.
+          </p>
+          <div className="hero-meta">
+            <div>
+              <span className="label">API Root</span>
+              <span className="value">/backend</span>
+            </div>
+            <div>
+              <span className="label">Worker Root</span>
+              <span className="value">/pdfworker</span>
+            </div>
+          </div>
+        </header>
+
+        <section className="panel">
+          <h2>1. Upload and index</h2>
+          <p className="muted">Upload a PDF, then we chunk and embed it.</p>
+          <div className="row">
+            <input type="file" accept="application/pdf" onChange={handleFileChange} />
+            <button type="button" onClick={handleUpload}>
+              Upload &amp; index
+            </button>
+          </div>
+          <div className={`status tone-${uploadStatus.tone}`}>{uploadStatus.message}</div>
+          <div className="details">
+            <div>
+              <span className="label">Current file</span>
+              <span className="value">{filename ?? "-"}</span>
+            </div>
+            <div>
+              <span className="label">Last processing</span>
+              <span className="value">{processInfo}</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel">
+          <h2>2. Ask your document</h2>
+          <p className="muted">We filter results to the latest uploaded file.</p>
+          <textarea
+            rows={4}
+            placeholder="Ask something about the PDF..."
+            value={queryText}
+            onChange={(event) => setQueryText(event.target.value)}
+          />
+          <div className="row">
+            <button type="button" onClick={handleQuery}>
+              Search
+            </button>
+            <span className={`status tone-${queryStatus.tone}`}>{queryStatus.message}</span>
+          </div>
+          <div className="results">
+            {results.map((item, idx) => (
+              <div key={`${idx}-${item.score}`} className="result-card">
+                <h4>
+                  Result {idx + 1} ? score {item.score?.toFixed(4) ?? "n/a"}
+                </h4>
+                <p>{item.text.length > 280 ? `${item.text.slice(0, 280)}...` : item.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <aside className="panel tips">
+          <h3>Tips</h3>
+          <ul>
+            <li>Large PDFs take time to embed; wait for the success status.</li>
+            <li>Try broad queries if you get empty results.</li>
+            <li>Elasticsearch must be running before indexing.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+  );
+}
