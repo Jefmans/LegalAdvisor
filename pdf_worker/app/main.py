@@ -1,4 +1,6 @@
 import fitz  # PyMuPDF
+import logging
+import time
 from fastapi import FastAPI, HTTPException
 from typing import List
 
@@ -13,12 +15,23 @@ from app.utils.pdf_pipeline import process_pdf
 from app.utils.pdf_reader import read_pdf_from_minio
 from app.utils.text_chunker import chunk_text
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(root_path="/pdfworker")
 
 
 @app.on_event("startup")
 def _startup():
-    ensure_all_indices()
+    max_attempts = 30
+    for attempt in range(1, max_attempts + 1):
+        try:
+            ensure_all_indices()
+            logger.info("Elasticsearch indices ready.")
+            return
+        except Exception as exc:
+            logger.warning("Elasticsearch not ready (attempt %s/%s): %s", attempt, max_attempts, exc)
+            time.sleep(2)
+    raise RuntimeError("Elasticsearch not reachable after startup retries")
 
 
 @app.post("/extract/{filename}")
