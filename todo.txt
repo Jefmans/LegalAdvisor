@@ -1,1 +1,0 @@
-I want to add a front-end where the user can upload a pdf and can also query this pdf 
