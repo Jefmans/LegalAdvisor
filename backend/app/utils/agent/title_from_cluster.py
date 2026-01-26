@@ -1,6 +1,6 @@
 # app/utils/agent/title_from_cluster.py
 from langchain_openai import ChatOpenAI
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 

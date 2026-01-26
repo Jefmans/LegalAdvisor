@@ -1,5 +1,5 @@
 from langchain_core.output_parsers import PydanticOutputParser
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from app.models.outline_model import Outline
 from app.models.research_tree import ResearchTree
