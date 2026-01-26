@@ -1,7 +1,7 @@
 import logging
 from typing import List
 
-from langchain.output_parsers import PydanticOutputParser
+from langchain_core.output_parsers import PydanticOutputParser
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel

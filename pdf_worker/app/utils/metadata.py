@@ -3,7 +3,7 @@ import os
 
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
-from langchain.output_parsers import PydanticOutputParser
+from langchain_core.output_parsers import PydanticOutputParser
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 
