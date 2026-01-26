@@ -1,0 +1,224 @@
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: always
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"  # Only for local/dev
+    ports:
+      - "80:80"
+    networks:
+      - internal_backend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - "traefik.enable=true"
+      # - "traefik.http.routers.traefik.rule=PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.traefik.rule=PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
+      # - "traefik.http.routers.traefik.rule=PathPrefix(`/dashboard`) || PathPrefix(`/traefik-api`)"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.service=api@internal"
+
+  whoami:
+    image: traefik/whoami
+    container_name: whoami
+    restart: always
+    networks:
+      - internal_backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=PathPrefix(`/whoami`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+
+
+  portainer_agent:
+    image: portainer/agent:latest
+    container_name: portainer_agent
+    restart: always
+    ports:
+      - "9001:9001"  # Insecure if exposed to all IPs!
+    networks:
+      - internal_backend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: testdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal_backend
+    labels:
+      # - "traefik.enable=true"
+      # - "traefik.http.routers.postgres.rule=PathPrefix(`/db`)"
+      - "traefik.http.routers.postgres.entrypoints=web"
+      - "traefik.http.routers.postgres.middlewares=db-strip"
+      - "traefik.http.middlewares.db-strip.stripprefix.prefixes=/db"
+      - "traefik.http.services.postgres.loadbalancer.server.port=5432"  # not an HTTP port, only for test purposes
+
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8081:80" # Temporary Hack): Expose a dedicated port => need a domain
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json
+    networks:
+      - internal_backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pgadmin.rule=PathPrefix(`/pgadmin`)"
+      - "traefik.http.routers.pgadmin.entrypoints=web"
+      - "traefik.http.routers.pgadmin.middlewares=pgadmin-strip"
+      - "traefik.http.middlewares.pgadmin-strip.stripprefix.prefixes=/pgadmin"
+      - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
+
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+    container_name: elasticsearch
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false      
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+    networks:
+      - internal_backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.elasticsearch.rule=PathPrefix(`/es`)"
+      - "traefik.http.routers.elasticsearch.entrypoints=web"
+      - "traefik.http.routers.elasticsearch.middlewares=es-strip"
+      - "traefik.http.middlewares.es-strip.stripprefix.prefixes=/es"
+      - "traefik.http.services.elasticsearch.loadbalancer.server.port=9200"
+
+
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.0.0
+    container_name: kibana
+    restart: always
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_BASEPATH=/kibana
+      - SERVER_REWRITEBASEPATH=true
+    depends_on:
+      - elasticsearch
+    networks:
+      - internal_backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kibana.rule=PathPrefix(`/kibana`)"
+      - "traefik.http.routers.kibana.entrypoints=web"
+
+      # - "traefik.http.middlewares.kibana-redirect.redirectregex.regex=^/kibana$$"
+      # - "traefik.http.middlewares.kibana-redirect.redirectregex.replacement=/kibana/app/home"
+      # - "traefik.http.middlewares.kibana-redirect.redirectregex.permanent=true"
+      - "traefik.http.services.kibana.loadbalancer.server.port=5601"
+
+
+
+  backend:
+    env_file:
+      - .env
+    build:
+      context: ./backend
+    container_name: backend
+    restart: always
+    networks:
+      - internal_backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/backend`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    networks:
+      - internal_backend
+    ports:
+      - "9101:9001"       
+
+
+  # pdf_reader:
+  #   build:
+  #     context: ./pdf_worker
+  #   container_name: pdf_reader
+  #   restart: always
+  #   environment:
+  #     PDF_NAME: "5a4aac01-9c03-462b-955a-be69ca5f94e5_de_witte.pdf"  # Set to a known PDF in MinIO
+  #   networks:
+  #     - internal_backend
+
+
+  pdf_worker:
+    env_file:
+      - .env
+    build:
+      context: ./pdf_worker
+    container_name: pdf_worker
+    restart: always
+    networks:
+      - internal_backend
+    depends_on:
+      - minio
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pdfworker.rule=PathPrefix(`/pdfworker`)"
+      - "traefik.http.routers.pdfworker.entrypoints=web"
+      - "traefik.http.routers.pdfworker.middlewares=strip-worker"
+      - "traefik.http.middlewares.strip-worker.stripprefix.prefixes=/pdfworker"
+      - "traefik.http.services.pdfworker.loadbalancer.server.port=8000"
+
+
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  elastic_data:
+  minio_data:
+
+
+
+
+
+networks:
+  internal_backend:
+    name: internal_backend
+    driver: bridge

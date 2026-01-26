@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+psycopg2-binary
+sqlalchemy>=2.0
+minio
+python-multipart
+requests
+pymupdf
+
+# Python client for Elasticsearch - must satisfy langchain-elasticsearch
+elasticsearch>=8.13.1,<9
+
+# LangChain stack (matches the docs you linked)
+langchain>=0.3.25
+langchain-openai>=0.1.17
+langchain-elasticsearch==0.3.2
