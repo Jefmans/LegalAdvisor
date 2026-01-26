@@ -63,7 +63,7 @@ services:
       retries: 10
       start_period: 5s
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - internal_backend
     labels:
