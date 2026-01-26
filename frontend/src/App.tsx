@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 const initialUploadStatus = { message: "No file selected.", tone: "idle" as const };
 const initialQueryStatus = { message: "Waiting for a query.", tone: "idle" as const };
+const initialSummaryStatus = { message: "No summary yet.", tone: "idle" as const };
 
 type Tone = "idle" | "ok" | "warn" | "error";
 
@@ -29,12 +30,14 @@ export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<Status>(initialUploadStatus);
   const [queryStatus, setQueryStatus] = useState<Status>(initialQueryStatus);
+  const [summaryStatus, setSummaryStatus] = useState<Status>(initialSummaryStatus);
   const [availableFiles, setAvailableFiles] = useState<string[]>([]);
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
   const [lastUploaded, setLastUploaded] = useState<string | null>(null);
   const [processInfo, setProcessInfo] = useState<string>("-");
   const [queryText, setQueryText] = useState<string>("");
   const [results, setResults] = useState<QueryItem[]>([]);
+  const [summary, setSummary] = useState<string>("");
 
   const applyFileList = (files: string[]) => {
     setAvailableFiles(files);
@@ -136,6 +139,8 @@ export default function App() {
 
     try {
       setStatus({ message: "Searching...", tone: "idle" }, setQueryStatus);
+      setStatus({ message: "No summary yet.", tone: "idle" }, setSummaryStatus);
+      setSummary("");
       setResults([]);
 
       const res = await fetch("/backend/query/", {
@@ -173,9 +178,38 @@ export default function App() {
 
       setResults(filtered);
       setStatus({ message: `Showing ${filtered.length} results.`, tone: "ok" }, setQueryStatus);
+      void summarizeResults(filtered);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Query failed";
       setStatus({ message: `Failed: ${message}`, tone: "error" }, setQueryStatus);
+    }
+  };
+
+  const summarizeResults = async (items: QueryItem[]) => {
+    const texts = items.map((item) => item.text).filter((text) => !!text);
+    if (!texts.length) {
+      setStatus({ message: "No text to summarize.", tone: "warn" }, setSummaryStatus);
+      return;
+    }
+
+    try {
+      setStatus({ message: "Summarizing top results...", tone: "idle" }, setSummaryStatus);
+      const res = await fetch("/backend/summarize_texts/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texts })
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const data = (await res.json()) as { summary?: string };
+      setSummary(data.summary ?? "");
+      setStatus({ message: "Summary ready.", tone: "ok" }, setSummaryStatus);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Summary failed";
+      setStatus({ message: `Failed: ${message}`, tone: "error" }, setSummaryStatus);
     }
   };
 
@@ -260,6 +294,11 @@ export default function App() {
               Search
             </button>
             <span className={`status tone-${queryStatus.tone}`}>{queryStatus.message}</span>
+          </div>
+          <div className="summary">
+            <h3>Summary of top results</h3>
+            <span className={`status tone-${summaryStatus.tone}`}>{summaryStatus.message}</span>
+            {summary && <p>{summary}</p>}
           </div>
           <div className="results">
             {results.map((item, idx) => (

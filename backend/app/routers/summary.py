@@ -23,6 +23,11 @@ class QuerySummaryRequest(BaseModel):
     model: str = "gpt-4o-mini"
 
 
+class TextsSummaryRequest(BaseModel):
+    texts: List[str]
+    model: str = "gpt-4o-mini"
+
+
 def _sort_key(item: tuple):
     page, chunk_index, _text = item
     page_key = page if page is not None else 1_000_000
@@ -87,5 +92,18 @@ def summarize_query(req: QuerySummaryRequest):
     return {
         "query": req.query,
         "chunk_count": len(texts),
+        "summary": summary,
+    }
+
+
+@router.post("/summarize_texts/")
+def summarize_texts_endpoint(req: TextsSummaryRequest):
+    cleaned = [text.strip() for text in req.texts if text and text.strip()]
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="No texts provided")
+
+    summary = summarize_texts(cleaned, model=req.model)
+    return {
+        "chunk_count": len(cleaned),
         "summary": summary,
     }
