@@ -87,6 +87,42 @@ export default function App() {
     loadFiles();
   }, []);
 
+  useEffect(() => {
+    if (!selectedFilename) {
+      setLanguageInfo("-");
+      setSectionPatterns([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const loadInfo = async () => {
+      try {
+        const res = await fetch(
+          `/backend/files/info/${encodeURIComponent(selectedFilename)}`,
+          { signal: controller.signal }
+        );
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        const data = (await res.json()) as {
+          language?: string | null;
+          language_name?: string | null;
+          section_patterns?: string[];
+        };
+        const code = data.language ?? "und";
+        const name = data.language_name ?? "Unknown";
+        setLanguageInfo(`${code} (${name})`);
+        setSectionPatterns(Array.isArray(data.section_patterns) ? data.section_patterns : []);
+      } catch {
+        setLanguageInfo("-");
+        setSectionPatterns([]);
+      }
+    };
+
+    loadInfo();
+    return () => controller.abort();
+  }, [selectedFilename]);
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.files?.[0] ?? null;
     setFile(next);

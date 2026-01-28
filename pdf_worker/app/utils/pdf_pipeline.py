@@ -67,10 +67,17 @@ def process_pdf(file_path: str, book_id: str, source_pdf: str) -> dict:
             book_id=book_id,
             source_pdf=source_pdf,
             language=language_code,
+            language_name=language_name,
+            section_patterns=section_patterns,
         ),
     )
 
-    embed_and_store_captions(image_records, language=language_code)
+    embed_and_store_captions(
+        image_records,
+        language=language_code,
+        language_name=language_name,
+        section_patterns=section_patterns,
+    )
 
     chunks_count = len(chunks)
     captions_indexed = len([r for r in image_records if r.caption and r.caption.strip()])

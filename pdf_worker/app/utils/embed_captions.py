@@ -22,6 +22,8 @@ def embed_and_store_captions(
     index_name: str = CAPTIONS,
     *,
     language: str | None = None,
+    language_name: str | None = None,
+    section_patterns: List[str] | None = None,
 ):
     """
     Embed caption texts from ImageMetadata list and index them in Elasticsearch.
@@ -52,6 +54,8 @@ def embed_and_store_captions(
                 "xref": record.xref,
                 "filename": record.filename,
                 "language": language,
+                "language_name": language_name,
+                "section_patterns": section_patterns,
                 "metadata": {
                     "book_id": record.book_id,
                     "page_number": record.page_number,
@@ -59,6 +63,8 @@ def embed_and_store_captions(
                     "xref": record.xref,
                     "filename": record.filename,
                     "language": language,
+                    "language_name": language_name,
+                    "section_patterns": section_patterns,
                 },
             }
         })
