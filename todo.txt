@@ -65,3 +65,9 @@
 - Restrict access by IP or auth for /app and backend.
 - Add health checks and dashboards.
 - Backup and restore for ES and storage.
+
+
+
+
+----------------------------------
+We should have 

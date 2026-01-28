@@ -201,7 +201,7 @@ export default function App() {
       const res = await fetch("/backend/summarize_texts/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texts })
+        body: JSON.stringify({ texts, query: queryText })
       });
 
       if (!res.ok) {
