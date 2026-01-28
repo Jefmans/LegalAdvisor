@@ -36,9 +36,28 @@ export default function App() {
   const [lastUploaded, setLastUploaded] = useState<string | null>(null);
   const [processInfo, setProcessInfo] = useState<string>("-");
   const [languageInfo, setLanguageInfo] = useState<string>("-");
+  const [sectionPatterns, setSectionPatterns] = useState<string[]>([]);
   const [queryText, setQueryText] = useState<string>("");
   const [results, setResults] = useState<QueryItem[]>([]);
   const [summary, setSummary] = useState<string>("");
+  const [page, setPage] = useState<"home" | "patterns">(() => {
+    return window.location.pathname.endsWith("/patterns") ? "patterns" : "home";
+  });
+
+  useEffect(() => {
+    const onPop = () => {
+      setPage(window.location.pathname.endsWith("/patterns") ? "patterns" : "home");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const navigate = (next: "home" | "patterns") => {
+    const basePath = "/app";
+    const path = next === "patterns" ? `${basePath}/patterns` : `${basePath}`;
+    window.history.pushState({}, "", path);
+    setPage(next);
+  };
 
   const applyFileList = (files: string[]) => {
     setAvailableFiles(files);
@@ -121,8 +140,12 @@ export default function App() {
       const captions = processData.captions_indexed ?? "?";
       const languageCode = processData.language ?? "und";
       const languageName = processData.language_name ?? "Unknown";
+      const detectedPatterns = Array.isArray(processData.section_patterns)
+        ? (processData.section_patterns as string[])
+        : [];
       setProcessInfo(`Pages: ${pages} | Chunks: ${chunks} | Captions: ${captions}`);
       setLanguageInfo(`${languageCode} (${languageName})`);
+      setSectionPatterns(detectedPatterns);
       setStatus({ message: "Indexed successfully.", tone: "ok" }, setUploadStatus);
       await loadFiles();
     } catch (err) {
@@ -238,8 +261,56 @@ export default function App() {
               <span className="value">/pdfworker</span>
             </div>
           </div>
+          <div className="nav">
+            <button
+              type="button"
+              className={page === "home" ? "active" : ""}
+              onClick={() => navigate("home")}
+            >
+              Workspace
+            </button>
+            <button
+              type="button"
+              className={page === "patterns" ? "active" : ""}
+              onClick={() => navigate("patterns")}
+            >
+              Section Patterns
+            </button>
+          </div>
         </header>
 
+        {page === "patterns" ? (
+          <section className="panel">
+            <h2>Detected section patterns</h2>
+            <p className="muted">
+              These patterns are inferred from the PDF content and used to keep article or
+              section boundaries intact during chunking.
+            </p>
+            <div className="details">
+              <div>
+                <span className="label">Selected file</span>
+                <span className="value">{selectedFilename ?? "-"}</span>
+              </div>
+              <div>
+                <span className="label">Detected language</span>
+                <span className="value">{languageInfo}</span>
+              </div>
+            </div>
+            {sectionPatterns.length ? (
+              <ul className="pattern-list">
+                {sectionPatterns.map((pattern) => (
+                  <li key={pattern}>
+                    <code>{pattern}</code>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="status tone-warn">
+                No patterns detected yet. Upload &amp; index a PDF to see them here.
+              </div>
+            )}
+          </section>
+        ) : (
         <section className="panel">
           <h2>1. Upload and index</h2>
           <p className="muted">Upload a PDF, then we chunk and embed it.</p>
@@ -328,6 +399,7 @@ export default function App() {
             <li>Elasticsearch must be running before indexing.</li>
           </ul>
         </aside>
+        )}
       </div>
     </div>
   );
