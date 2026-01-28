@@ -311,7 +311,8 @@ export default function App() {
             )}
           </section>
         ) : (
-        <section className="panel">
+        <>
+          <section className="panel">
           <h2>1. Upload and index</h2>
           <p className="muted">Upload a PDF, then we chunk and embed it.</p>
           <div className="row">
@@ -357,9 +358,9 @@ export default function App() {
               <span className="value">{languageInfo}</span>
             </div>
           </div>
-        </section>
+          </section>
 
-        <section className="panel">
+          <section className="panel">
           <h2>2. Ask your document</h2>
           <p className="muted">We filter results to the selected file.</p>
           <textarea
@@ -389,16 +390,17 @@ export default function App() {
               </div>
             ))}
           </div>
-        </section>
+          </section>
 
-        <aside className="panel tips">
+          <aside className="panel tips">
           <h3>Tips</h3>
           <ul>
             <li>Large PDFs take time to embed; wait for the success status.</li>
             <li>Try broad queries if you get empty results.</li>
             <li>Elasticsearch must be running before indexing.</li>
           </ul>
-        </aside>
+          </aside>
+        </>
         )}
       </div>
     </div>
