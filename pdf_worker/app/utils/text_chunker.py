@@ -27,6 +27,18 @@ def _select_section_patterns(language_code: Optional[str]) -> List[str]:
     return SECTION_PATTERNS.get(language_code, [])
 
 
+def _count_section_matches(full_text: str, patterns: List[str]) -> int:
+    if not full_text or not patterns:
+        return 0
+    count = 0
+    for pattern in patterns:
+        for _ in re.finditer(pattern, full_text, flags=re.IGNORECASE):
+            count += 1
+            if count >= 2:
+                return count
+    return count
+
+
 def _split_into_sections(full_text: str, patterns: List[str]) -> List[Dict]:
     if not full_text:
         return []
@@ -92,6 +104,9 @@ def chunk_text(
     full_text = "\n\n".join(normalized_pages)
     page_offsets = get_page_offsets(normalized_pages)
     patterns = section_patterns if section_patterns is not None else _select_section_patterns(language_code)
+    if section_patterns:
+        if _count_section_matches(full_text, section_patterns) < 2:
+            patterns = _select_section_patterns(language_code)
     sections = _split_into_sections(full_text, patterns)
 
     all_chunks = []

@@ -9,10 +9,12 @@ from app.utils.cleaning.clean_text_pipeline import clean_document_text
 from app.utils.embedding import embed_chunks
 from app.utils.es import ensure_all_indices, save_chunks_to_es
 from app.utils.image_extraction import process_images_and_captions
+from app.utils.language import detect_language_from_pages
 from app.utils.metadata import get_doc_info
 from app.utils.minio_utils import download_from_minio
 from app.utils.pdf_pipeline import process_pdf
 from app.utils.pdf_reader import read_pdf_from_minio
+from app.utils.structure import detect_section_patterns_from_pages
 from app.utils.text_chunker import chunk_text
 
 logger = logging.getLogger(__name__)
@@ -73,7 +75,17 @@ def process_and_chunk_pdf(filename: str):
     try:
         local_path = download_from_minio(filename)
         cleaned_pages = clean_document_text(local_path)
-        chunks = chunk_text(cleaned_pages, chunk_sizes=[200, 400, 800, 1600])
+        language_info = detect_language_from_pages(cleaned_pages)
+        section_patterns = detect_section_patterns_from_pages(
+            cleaned_pages,
+            language_code=language_info.get("code"),
+        )
+        chunks = chunk_text(
+            cleaned_pages,
+            chunk_sizes=[200, 400, 800, 1600],
+            language_code=language_info.get("code"),
+            section_patterns=section_patterns,
+        )
 
         return {
             "status": "success",
@@ -91,7 +103,17 @@ def process_clean_embed_chunks(filename: str):
         local_path = download_from_minio(filename)
 
         cleaned_pages = clean_document_text(local_path)
-        chunks = chunk_text(cleaned_pages, chunk_sizes=[800, 1600])
+        language_info = detect_language_from_pages(cleaned_pages)
+        section_patterns = detect_section_patterns_from_pages(
+            cleaned_pages,
+            language_code=language_info.get("code"),
+        )
+        chunks = chunk_text(
+            cleaned_pages,
+            chunk_sizes=[800, 1600],
+            language_code=language_info.get("code"),
+            section_patterns=section_patterns,
+        )
         embedded = embed_chunks(chunks)
 
         save_chunks_to_es(filename, embedded)

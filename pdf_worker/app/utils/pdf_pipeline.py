@@ -11,6 +11,7 @@ from app.utils.es import save_chunks_to_es
 from app.utils.image_extraction import process_images_and_captions
 from app.utils.language import detect_language_from_pages
 from app.utils.text_chunker import chunk_text
+from app.utils.structure import detect_section_patterns_from_pages
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +43,15 @@ def process_pdf(file_path: str, book_id: str, source_pdf: str) -> dict:
                     if img.caption.strip() not in line.strip()
                 )
 
+    section_patterns = detect_section_patterns_from_pages(
+        cleaned_pages,
+        language_code=language_code,
+    )
     chunks = chunk_text(
         cleaned_pages,
         chunk_sizes=[400, 1600],
         language_code=language_code,
+        section_patterns=section_patterns,
     )
     logger.info("Total chunks created: %s", len(chunks))
 
