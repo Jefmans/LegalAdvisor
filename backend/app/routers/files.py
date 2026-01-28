@@ -1,28 +1,23 @@
-from elasticsearch import Elasticsearch
 from fastapi import APIRouter
 
+from app.utils.minio_client import get_minio_client
+
 router = APIRouter()
-es = Elasticsearch("http://elasticsearch:9200")
 
 
 @router.get("/files/")
 def list_files(limit: int = 200):
+    client = get_minio_client()
+    files = []
     try:
-        response = es.search(
-            index="pdf_chunks",
-            size=0,
-            ignore_unavailable=True,
-            body={
-                "aggs": {
-                    "files": {
-                        "terms": {"field": "filename", "size": limit, "order": {"_key": "asc"}}
-                    }
-                }
-            },
-        )
+        for obj in client.list_objects("uploads", recursive=True):
+            if getattr(obj, "is_dir", False):
+                continue
+            if obj.object_name:
+                files.append(obj.object_name)
+            if len(files) >= limit:
+                break
     except Exception:
         return {"files": []}
 
-    buckets = response.get("aggregations", {}).get("files", {}).get("buckets", [])
-    files = [bucket.get("key") for bucket in buckets if bucket.get("key")]
-    return {"files": files}
+    return {"files": sorted(files)}
