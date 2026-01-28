@@ -1,0 +1,67 @@
+# LegalAdvisor roadmap
+
+## Phase 0 - Scope and data contract
+- Define jurisdictions and doc types to support first (statute, regulation, case law).
+- Define supported languages and encoding expectations.
+- Decide required metadata fields for each document type.
+- Decide citation format to output (doc title, article/section, url).
+
+## Phase 1 - Data model and index schema
+- Define a canonical metadata schema for chunks:
+  - doc_id, doc_title, doc_type, jurisdiction, source_url
+  - law_title, chapter, article, section, subsection
+  - structure_path (joined hierarchy), effective_date, version
+  - page_number, chunk_index, chunk_hash
+  - citations (list of parsed references)
+- Update Elasticsearch mappings for pdf_chunks and captions to include the above metadata.
+- Add an ES index for documents (doc registry) and optionally for references/edges.
+
+## Phase 2 - Ingestion and parsing
+- PDF ingestion:
+  - Extract text with page numbers.
+  - Detect hierarchy markers (Title, Chapter, Article, Section, Subsection).
+  - Build a hierarchy tree per document.
+- Website ingestion:
+  - Crawl or ingest by URL list.
+  - Extract text and detect structure headings.
+- Add ingestion normalization (fix hyphenation, headers/footers, repeated page text).
+
+## Phase 3 - Legal-aware chunking
+- Chunk at section boundaries (never across articles).
+- Add header context into each chunk:
+  - Jurisdiction, law title, article/section labels.
+- Create stable chunk ids from doc_id + hierarchy path + chunk_index.
+
+## Phase 4 - Embedding and indexing
+- Embed each chunk with embeddings model.
+- Store vector + full metadata in ES.
+- Ensure re-indexing is idempotent and can rebuild an index safely.
+
+## Phase 5 - Retrieval and multi-hop reasoning
+- Hybrid retrieval (vector + keyword/field filters).
+- Filter results by selected file/jurisdiction/doc type.
+- Parse citations in top-k chunks and optionally expand:
+  - Fetch cited sections if relevant.
+- Keep provenance for every retrieved chunk.
+
+## Phase 6 - Answer generation with citations
+- Combine top-k chunks (and any expanded references).
+- Generate final response with inline citations:
+  - Use [Doc Title - Article - Section] or URL anchors.
+- Add a mode to return raw chunks and their metadata for audit.
+
+## Phase 7 - Frontend and UX
+- Upload PDF and list available documents.
+- Show document metadata (jurisdiction, title, version).
+- Query input with filters (jurisdiction, doc type, file).
+- Display results with citations and a generated summary.
+
+## Phase 8 - Governance and QA
+- Add evaluation set (known questions and expected citations).
+- Logging and traceability for which chunks were used.
+- Add a document revision policy and deprecation handling.
+
+## Phase 9 - Operations and security
+- Restrict access by IP or auth for /app and backend.
+- Add health checks and dashboards.
+- Backup and restore for ES and storage.

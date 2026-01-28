@@ -35,6 +35,7 @@ export default function App() {
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
   const [lastUploaded, setLastUploaded] = useState<string | null>(null);
   const [processInfo, setProcessInfo] = useState<string>("-");
+  const [languageInfo, setLanguageInfo] = useState<string>("-");
   const [queryText, setQueryText] = useState<string>("");
   const [results, setResults] = useState<QueryItem[]>([]);
   const [summary, setSummary] = useState<string>("");
@@ -118,7 +119,10 @@ export default function App() {
       const pages = processData.pages ?? "?";
       const chunks = processData.chunks_indexed ?? "?";
       const captions = processData.captions_indexed ?? "?";
+      const languageCode = processData.language ?? "und";
+      const languageName = processData.language_name ?? "Unknown";
       setProcessInfo(`Pages: ${pages} | Chunks: ${chunks} | Captions: ${captions}`);
+      setLanguageInfo(`${languageCode} (${languageName})`);
       setStatus({ message: "Indexed successfully.", tone: "ok" }, setUploadStatus);
       await loadFiles();
     } catch (err) {
@@ -276,6 +280,10 @@ export default function App() {
             <div>
               <span className="label">Last processing</span>
               <span className="value">{processInfo}</span>
+            </div>
+            <div>
+              <span className="label">Detected language</span>
+              <span className="value">{languageInfo}</span>
             </div>
           </div>
         </section>
