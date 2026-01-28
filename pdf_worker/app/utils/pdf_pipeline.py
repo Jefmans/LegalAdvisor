@@ -47,6 +47,10 @@ def process_pdf(file_path: str, book_id: str, source_pdf: str) -> dict:
         cleaned_pages,
         language_code=language_code,
     )
+    if section_patterns:
+        logger.info("Detected section patterns for %s: %s", source_pdf, section_patterns)
+    else:
+        logger.info("No section patterns detected for %s", source_pdf)
     chunks = chunk_text(
         cleaned_pages,
         chunk_sizes=[400, 1600],
@@ -78,4 +82,5 @@ def process_pdf(file_path: str, book_id: str, source_pdf: str) -> dict:
         "captions_indexed": captions_indexed,
         "language": language_code,
         "language_name": language_name,
+        "section_patterns": section_patterns,
     }
