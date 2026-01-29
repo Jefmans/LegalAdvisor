@@ -5,12 +5,19 @@ import re
 
 SECTION_PATTERNS = {
     "en": [
-        r"\bArticle\s+\d+[A-Za-z0-9\-\.]*",
-        r"\bSection\s+\d+[A-Za-z0-9\-\.]*",
-        r"\bChapter\s+[IVXLC0-9]+",
-        r"\bTitle\s+[IVXLC0-9]+",
-        r"§\s*\d+[A-Za-z0-9\-\.]*",
-    ]
+        r"Article\s+\d+[A-Za-z0-9\-\.]*",
+        r"Section\s+\d+[A-Za-z0-9\-\.]*",
+        r"Chapter\s+[IVXLC0-9]+",
+        r"Title\s+[IVXLC0-9]+",
+        r"\u00a7\s*\d+[A-Za-z0-9\-\.]*",
+    ],
+    "nl": [
+        r"Art\.\s+\d+[A-Za-z0-9\-\.]*",
+        r"HOOFDSTUK\s+[IVXLC0-9]+",
+        r"AFDELING\s+[IVXLC0-9]+",
+        r"TITEL\s+[IVXLC0-9]+",
+        r"\u00a7\s*\d+[A-Za-z0-9\-\.]*",
+    ],
 }
 
 
@@ -18,7 +25,13 @@ def normalize_page_text(page: str) -> str:
     """
     Converts line-based page text to normalized paragraph text.
     """
-    return " ".join(line.strip() for line in page.splitlines() if line.strip())
+    normalized_lines = []
+    for line in page.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        normalized_lines.append(" ".join(stripped.split()))
+    return "\n".join(normalized_lines)
 
 
 def _select_section_patterns(language_code: Optional[str]) -> List[str]:
@@ -26,10 +39,23 @@ def _select_section_patterns(language_code: Optional[str]) -> List[str]:
         return []
     return SECTION_PATTERNS.get(language_code, [])
 
+def _normalize_section_patterns(patterns: List[str]) -> List[str]:
+    normalized = []
+    for pattern in patterns:
+        if not pattern or not pattern.strip():
+            continue
+        clean = pattern.strip()
+        if clean.startswith("^") or clean.startswith("(?m)^"):
+            normalized.append(clean)
+            continue
+        normalized.append(r"(?m)^\s*(?:%s)" % clean)
+    return normalized
+
 
 def _count_section_matches(full_text: str, patterns: List[str]) -> int:
     if not full_text or not patterns:
         return 0
+    patterns = _normalize_section_patterns(patterns)
     count = 0
     for pattern in patterns:
         for _ in re.finditer(pattern, full_text, flags=re.IGNORECASE):
@@ -45,6 +71,8 @@ def _split_into_sections(full_text: str, patterns: List[str]) -> List[Dict]:
 
     if not patterns:
         return [{"start": 0, "end": len(full_text), "text": full_text}]
+
+    patterns = _normalize_section_patterns(patterns)
 
     starts = set()
     for pattern in patterns:
