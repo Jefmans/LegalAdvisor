@@ -28,6 +28,7 @@ function setStatus(next: Status, setter: (value: Status) => void) {
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
+  const [urlInput, setUrlInput] = useState<string>("");
   const [uploadStatus, setUploadStatus] = useState<Status>(initialUploadStatus);
   const [queryStatus, setQueryStatus] = useState<Status>(initialQueryStatus);
   const [summaryStatus, setSummaryStatus] = useState<Status>(initialSummaryStatus);
@@ -248,6 +249,61 @@ export default function App() {
     }
   };
 
+  const handleUrlUpload = async () => {
+    if (!urlInput.trim()) {
+      setStatus({ message: "Paste a URL first.", tone: "warn" }, setUploadStatus);
+      return;
+    }
+
+    try {
+      setStatus({ message: "Fetching URL...", tone: "idle" }, setUploadStatus);
+
+      const uploadRes = await fetch("/backend/upload_url/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: urlInput.trim() })
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(await uploadRes.text());
+      }
+
+      const uploadData = await uploadRes.json();
+      const uploadedName = uploadData.filename as string;
+      setLastUploaded(uploadedName);
+      setSelectedFilename(uploadedName);
+
+      setStatus({ message: "Upload complete. Indexing...", tone: "ok" }, setUploadStatus);
+
+      const processRes = await fetch(
+        `/pdfworker/process/full/${encodeURIComponent(uploadedName)}`,
+        { method: "POST" }
+      );
+
+      if (!processRes.ok) {
+        throw new Error(await processRes.text());
+      }
+
+      const processData = await processRes.json();
+      const pages = processData.pages ?? "?";
+      const chunks = processData.chunks_indexed ?? "?";
+      const captions = processData.captions_indexed ?? "?";
+      const languageCode = processData.language ?? "und";
+      const languageName = processData.language_name ?? "Unknown";
+      const detectedPatterns = Array.isArray(processData.section_patterns)
+        ? (processData.section_patterns as string[])
+        : [];
+      setProcessInfo(`Pages: ${pages} | Chunks: ${chunks} | Captions: ${captions}`);
+      setLanguageInfo(`${languageCode} (${languageName})`);
+      setSectionPatterns(detectedPatterns);
+      setStatus({ message: "Indexed successfully.", tone: "ok" }, setUploadStatus);
+      await loadFiles();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      setStatus({ message: `Failed: ${message}`, tone: "error" }, setUploadStatus);
+    }
+  };
+
   const summarizeResults = async (items: QueryItem[]) => {
     const texts = items.map((item) => item.text).filter((text) => !!text);
     if (!texts.length) {
@@ -355,6 +411,17 @@ export default function App() {
             <input type="file" accept=".pdf,.html,text/html" onChange={handleFileChange} />
             <button type="button" onClick={handleUpload}>
               Upload &amp; index
+            </button>
+          </div>
+          <div className="row">
+            <input
+              type="url"
+              placeholder="Paste a URL to an HTML law page"
+              value={urlInput}
+              onChange={(event) => setUrlInput(event.target.value)}
+            />
+            <button type="button" onClick={handleUrlUpload}>
+              Fetch URL &amp; index
             </button>
           </div>
           <div className={`status tone-${uploadStatus.tone}`}>{uploadStatus.message}</div>
