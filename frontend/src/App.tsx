@@ -352,7 +352,7 @@ export default function App() {
           <h2>1. Upload and index</h2>
           <p className="muted">Upload a PDF, then we chunk and embed it.</p>
           <div className="row">
-            <input type="file" accept="application/pdf" onChange={handleFileChange} />
+            <input type="file" accept=".pdf,.html,text/html" onChange={handleFileChange} />
             <button type="button" onClick={handleUpload}>
               Upload &amp; index
             </button>

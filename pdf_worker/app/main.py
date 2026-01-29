@@ -10,6 +10,7 @@ from app.utils.embedding import embed_chunks
 from app.utils.es import ensure_all_indices, save_chunks_to_es
 from app.utils.image_extraction import process_images_and_captions
 from app.utils.language import detect_language_from_pages
+from app.utils.html_pipeline import process_html
 from app.utils.metadata import get_doc_info
 from app.utils.minio_utils import download_from_minio
 from app.utils.pdf_pipeline import process_pdf
@@ -128,7 +129,10 @@ def full_pdf_pipeline(filename: str):
     try:
         local_path = download_from_minio(filename)
         book_id = filename.split("_")[0]
-        stats = process_pdf(local_path, book_id, filename) or {}
+        if filename.lower().endswith((".html", ".htm")):
+            stats = process_html(local_path, book_id, filename) or {}
+        else:
+            stats = process_pdf(local_path, book_id, filename) or {}
         return {"status": "success", "filename": filename, **stats}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
