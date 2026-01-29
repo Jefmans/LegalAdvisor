@@ -53,7 +53,7 @@ def process_pdf(file_path: str, book_id: str, source_pdf: str) -> dict:
         logger.info("No section patterns detected for %s", source_pdf)
     chunks = chunk_text(
         cleaned_pages,
-        chunk_sizes=[400, 1600],
+        chunk_sizes=[800, 1600],
         language_code=language_code,
         section_patterns=section_patterns,
     )

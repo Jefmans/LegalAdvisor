@@ -20,15 +20,25 @@ SECTION_PATTERNS = {
     ],
 }
 
+NOISE_LINE_PATTERNS = [
+    r"^-{3,}$",
+    r"^Pagina\s+\d+\s+van\s+\d+",
+    r"Copyright",
+    r"Belgisch Staatsblad",
+]
+
 
 def normalize_page_text(page: str) -> str:
     """
     Converts line-based page text to normalized paragraph text.
     """
     normalized_lines = []
+    noise_patterns = [re.compile(pat, flags=re.IGNORECASE) for pat in NOISE_LINE_PATTERNS]
     for line in page.splitlines():
         stripped = line.strip()
         if not stripped:
+            continue
+        if any(pat.search(stripped) for pat in noise_patterns):
             continue
         normalized_lines.append(" ".join(stripped.split()))
     return "\n".join(normalized_lines)
@@ -93,6 +103,40 @@ def _split_into_sections(full_text: str, patterns: List[str]) -> List[Dict]:
     return sections
 
 
+def _group_short_sections(sections: List[Dict], min_chars: int = 200) -> List[Dict]:
+    if not sections:
+        return sections
+    grouped: List[Dict] = []
+    buffer = None
+
+    for section in sections:
+        text = (section.get("text") or "").strip()
+        if not text:
+            continue
+
+        if len(text) >= min_chars:
+            if buffer:
+                grouped.append(buffer)
+                buffer = None
+            grouped.append(section)
+            continue
+
+        if buffer is None:
+            buffer = {
+                "start": section["start"],
+                "end": section["end"],
+                "text": text,
+            }
+        else:
+            buffer["text"] = f"{buffer['text']}\n\n{text}"
+            buffer["end"] = section["end"]
+
+    if buffer:
+        grouped.append(buffer)
+
+    return grouped
+
+
 def get_page_offsets(pages: List[str]) -> List[Dict]:
     """
     Returns a list of page start/end offsets for mapping chunks to pages.
@@ -136,6 +180,7 @@ def chunk_text(
         if _count_section_matches(full_text, section_patterns) < 2:
             patterns = _select_section_patterns(language_code)
     sections = _split_into_sections(full_text, patterns)
+    sections = _group_short_sections(sections, min_chars=200)
 
     all_chunks = []
 

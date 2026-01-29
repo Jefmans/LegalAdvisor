@@ -82,7 +82,7 @@ def process_and_chunk_pdf(filename: str):
         )
         chunks = chunk_text(
             cleaned_pages,
-            chunk_sizes=[200, 400, 800, 1600],
+            chunk_sizes=[800, 1600],
             language_code=language_info.get("code"),
             section_patterns=section_patterns,
         )
